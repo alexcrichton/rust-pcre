@@ -1,0 +1,12 @@
+[package]
+
+name = "cadencemarseille-pcre"
+version = "0.0.1"
+authors = [ "Your name <you@example.com>" ]
+
+[[lib]]
+
+name = "pcre"
+path = "src/pcre/mod.rs"
+
+
