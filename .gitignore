@@ -10,5 +10,8 @@ configure
 /.rust
 /bin
 /build
+/target
 /doc
 /lib
+
+Cargo.lock
