@@ -8,21 +8,22 @@
 
 // This is a port of the pcre project's `pcredemo` sample using rust-pcre bindings.
 
-extern crate collections;
-//extern crate extra;
+#![feature(exit_status, io)]
+#![allow(unused_must_use)]
+
+extern crate collect;
 extern crate getopts;
 extern crate pcre;
 
-use collections::treemap::{TreeMap};
-use collections::enum_set::{EnumSet};
-use getopts::{OptGroup, getopts, optflag};
-use pcre::{CompileOption, Match, Pcre, pcre_version};
-use std::io::stdio::stderr;
-use std::os;
-use std::string::{String};
+use collect::enum_set::EnumSet;
+use getopts::Options;
+use pcre::{Match, Pcre, pcre_version};
+use std::collections::BTreeMap;
+use std::env;
+use std::io::prelude::*;
+use std::io::stderr;
 
-fn print_usage(program: &String, opts: &[OptGroup]) {
-    drop(opts);
+fn print_usage(program: &String) {
     println!("Usage: {} [options] pattern subject", program);
     println!("Options:");
     println!("    -g                  Find all matches");
@@ -34,13 +35,13 @@ fn print_version_info() {
     println!("rust-pcre 0.1 compiled against libpcre {}", pcre_version());
 }
 
-fn print_match(m: &Match, name_table: &TreeMap<String, Vec<uint>>) {
-    println!("Match succeeded at offset {:u}", m.group_start(0u));
+fn print_match(m: &Match, name_table: &BTreeMap<String, Vec<usize>>) {
+    println!("Match succeeded at offset {}", m.group_start(0));
 
     // Show captured substrings by number.
-    let mut i = 0u;
+    let mut i = 0;
     while i < m.string_count() {
-        println!("{:2u}: {:s}", i, m.group(i));
+        println!("{:2}: {}", i, m.group(i));
         i += 1;
     }
 
@@ -51,33 +52,32 @@ fn print_match(m: &Match, name_table: &TreeMap<String, Vec<uint>>) {
         println!("Named substrings:");
         for (name, n_vec) in name_table.iter() {
             for n in n_vec.iter() {
-                println!("({:u}) {:s}: {:s}", *n, *name, m.group(*n));
+                println!("({}) {}: {}", *n, *name, m.group(*n));
             }
         }
     }
 }
 
 fn main() {
-    let args = os::args();
-    let program = args.get(0);
+    let args = env::args().collect::<Vec<_>>();
+    let program = &args[0];
 
-    let opts = [
-        optflag("g", "", "find all matches"),
-        optflag("h", "help", "print usage and exit"),
-        optflag("", "version", "print version information and exit")
-    ];
+    let mut opts = Options::new();
+    opts.optflag("g", "", "find all matches")
+        .optflag("h", "help", "print usage and exit")
+        .optflag("", "version", "print version information and exit");
 
-    let opt_matches = match getopts(args.tail(), opts) {
+    let opt_matches = match opts.parse(&args[1..]) {
         Ok(m)  => m,
         Err(f) => {
-            writeln!(stderr(), "Error: {}", f.to_err_msg());
-            os::set_exit_status(1);
+            writeln!(&mut stderr(), "Error: {}", f.to_err_msg());
+            env::set_exit_status(1);
             return;
         }
     };
 
     if opt_matches.opt_present("h") || opt_matches.opt_present("help") {
-        print_usage(program, opts);
+        print_usage(program);
         return;
     }
 
@@ -88,39 +88,41 @@ fn main() {
 
     let find_all = opt_matches.opt_present("g");
     if opt_matches.free.len() == 0 {
-        writeln!(stderr(), "Error: No pattern");
-        os::set_exit_status(1);
+        writeln!(&mut stderr(), "Error: No pattern");
+        env::set_exit_status(1);
         return;
     } else if opt_matches.free.len() == 1 {
-        writeln!(stderr(), "Error: No subject");
-        os::set_exit_status(1);
+        writeln!(&mut stderr(), "Error: No subject");
+        env::set_exit_status(1);
         return;
     } else if opt_matches.free.len() > 2 {
-        writeln!(stderr(), "Error: Too many command line arguments");
-        os::set_exit_status(1);
+        writeln!(&mut stderr(), "Error: Too many command line arguments");
+        env::set_exit_status(1);
         return;
     }
 
-    let pattern = opt_matches.free.get(0);
-    let subject = opt_matches.free.get(1);
+    let pattern = &opt_matches.free[0];
+    let subject = &opt_matches.free[1];
 
-    let mut compile_options: EnumSet<CompileOption> = EnumSet::empty();
-    compile_options.add(pcre::DupNames);
-    let re = match Pcre::compile_with_options(pattern.as_slice(), &compile_options) {
+    let mut compile_options = EnumSet::new();
+    compile_options.insert(pcre::CompileOption::DupNames);
+    let re = match Pcre::compile_with_options(&pattern,
+                                              &compile_options) {
         Err(err) => {
-            writeln!(stderr(), "Error: The pattern could not be compiled: {}", err);
-            os::set_exit_status(1);
+            writeln!(&mut stderr(),
+                     "Error: The pattern could not be compiled: {}", err);
+            env::set_exit_status(1);
             return;
         },
         Ok(re) => re
     };
     let name_table = re.name_table();
 
-    let opt_m = re.exec(subject.as_slice());
+    let opt_m = re.exec(subject);
     let m = match opt_m {
         None => {
             println!("No match");
-            os::set_exit_status(1);
+            env::set_exit_status(1);
             return;
         }
         Some(m) => m
@@ -130,7 +132,7 @@ fn main() {
     if find_all {
         let mut start_offset = m.group_end(0);
         loop {
-            let opt_m = re.exec_from(subject.as_slice(), start_offset);
+            let opt_m = re.exec_from(subject, start_offset);
             let m = match opt_m {
                 None => {
                     println!("\nNo more matches");

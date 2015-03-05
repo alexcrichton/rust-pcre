@@ -1,12 +1,14 @@
 [package]
-
-name = "cadencemarseille-pcre"
+name = "pcre"
 version = "0.0.1"
 authors = [ "Your name <you@example.com>" ]
 
-[lib]
+[dependencies]
+libc = "0.1"
+log = "0.2"
 
-name = "pcre"
-path = "src/pcre/mod.rs"
+[dependencies.collect]
+git = "https://github.com/gankro/collect-rs"
 
-
+[dev-dependencies]
+getopts = "0.2"
